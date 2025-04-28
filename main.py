@@ -6,7 +6,7 @@ import argparse
 # configurations
 config = ('-l eng --oem 1 --psm 3')
 # set path to tesseract
-pytesseract.pytesseract.tesseract_cmd = '/usr/local/Cellar/tesseract/5.1.0/bin/tesseract'
+pytesseract.pytesseract.tesseract_cmd = 'C:\\Program Files\\Tesseract-OCR\\tesseract.exe'
 
 def return_txt(filename):
 	return filename.replace('.jpg', '.txt').replace('.jpeg', '.txt').replace('.png', '.txt')

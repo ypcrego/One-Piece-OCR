@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-
-for dir in One_Piece/*/;     
-do
-		for filename in "${dir}"*.jpg;
-		do
-			python main.py --file "${filename}"
-		done 
+for dir in One_Piece/*/; do
+    base=$(basename "$dir")
+    outdir="${dir%/}/${base}"
+    mkdir -p "$outdir"
+    for img in "${dir}"*.jpg; do
+        python paddle_ocr.py --file "$img" --output "$outdir"
+    done
 done

@@ -1,82 +1,70 @@
+#!/usr/bin/env python3
 from paddleocr import PaddleOCR
-import cv2
-import numpy as np
-
+import cv2, numpy as np
+import os
+import argparse
 
 class Rect:
     def __init__(self, x1, y1, x2, y2, text):
-        self.x1 = x1
-        self.x2 = x2
-        self.y1 = y1
-        self.y2 = y2
+        self.x1, self.y1, self.x2, self.y2, self.text = x1, y1, x2, y2, text
         self.center = (x1 + x2) / 2
-        self.text = text
-
-    def __str__(self):
-        return f"Rect[{self.x1}, {self.y1}, {self.x2}, {self.y2}]"
-
-    def __repr__(self):
-        return f"{self.text}, "
-
+    def __repr__(self): return self.text
 
 def grouper(iterable):
-    prev = None
-    group = []
+    prev, group = None, []
     for item in iterable:
         if prev is None or abs(item.center - prev) <= 7:
             group.append(item)
         else:
-            yield group
-            group = [item]
+            yield group; group = [item]
         prev = item.center
-    if group:
-        yield group
+    if group: yield group
 
+def main():
+    parser = argparse.ArgumentParser(
+        description='OCR com PaddleOCR e saída em subpasta da pasta-mãe'
+    )
+    parser.add_argument('-f','--file', required=True, help='imagem .jpg/.png')
+    parser.add_argument('-o','--output', default=None,
+                        help='pasta de saída (padrão: subpasta da pasta-mãe)')
+    args = parser.parse_args()
 
-ocr = PaddleOCR(use_angle_cls=True, lang='en')  # Certifique-se de que os modelos estão baixados
-img_path = '08.jpg'
-result = ocr.ocr(img_path, cls=True) or []
+    if not args.file.lower().endswith(('.jpg','.jpeg','.png')):
+        raise SystemExit('Erro: extensão inválida')
 
-rectangles = []
+    # 1) transforme em caminho absoluto para evitar dirname vazio :contentReference[oaicite:7]{index=7}
+    file_path = os.path.abspath(args.file)
+    img_dir   = os.path.dirname(file_path)
+    # 2) ou use cwd caso ainda reste vazio:
+    if not img_dir:
+        img_dir = os.getcwd()                        # :contentReference[oaicite:8]{index=8}
 
-# ATUALIZAÇÃO: Percorrendo o novo formato
-for line in result:
-    for box, (text, confidence) in line:
-        # box é uma lista de 4 pontos (4 x [x,y])
-        x1, y1 = box[0]
-        x2, y2 = box[2]
-        rectangles.append(Rect(x1, y1, x2, y2, text))
+    parent = os.path.basename(img_dir)               # nome da pasta-mãe :contentReference[oaicite:9]{index=9}
+    out_dir = args.output or os.path.join(img_dir, parent)
+    os.makedirs(out_dir, exist_ok=True)              # safe create 
 
-print(f"Total de caixas detectadas: {len(rectangles)}")
+    ocr    = PaddleOCR(use_angle_cls=True, lang='en')
+    result = ocr.ocr(file_path, cls=True) or []
 
-rectangles.sort(key=lambda x: x.center)
-groups = dict(enumerate(grouper(rectangles), 1))
+    rects = []
+    for line in result:
+        for box, (txt, _) in line:
+            x1,y1 = box[0]; x2,y2 = box[2]
+            rects.append(Rect(x1,y1,x2,y2,txt))
 
-# Organizando dentro de cada grupo
-for group_id in groups:
-    groups[group_id].sort(key=lambda x: x.y1)
+    rects.sort(key=lambda r: r.center)
+    groups = dict(enumerate(grouper(rects),1))
+    for grp in groups.values(): grp.sort(key=lambda r: r.y1)
 
-print(groups)
+    # grava sem agrupamento
+    with open(os.path.join(out_dir,'without_grouping.txt'),'w',encoding='utf-8') as f:
+        for r in rects: f.write(r.text+'\n')
+    # grava com agrupamento
+    with open(os.path.join(out_dir,'with_grouping.txt'),'w',encoding='utf-8') as f:
+        for grp in groups.values():
+            for r in grp: f.write(r.text+'\n')
 
-# Salvando sem agrupamento
-with open('without_grouping.txt', 'w+', encoding='utf-8') as fil:
-    for rect in rectangles:
-        fil.write(f'{rect.text}\n')
+    print(f'Textos salvos em: {out_dir}')
 
-# Salvando com agrupamento
-with open('with_grouping.txt', 'w+', encoding='utf-8') as fil:
-    for group_id in groups:
-        for rect in groups[group_id]:
-            fil.write(f'{rect.text}\n')
-
-# Desenhar as caixas na imagem
-img = cv2.imread('08.jpg')
-
-for line in result:
-    for box, (text, confidence) in line:
-        box = list(map(lambda x: (int(x[0]), int(x[1])), box))
-        cv2.polylines(img, [np.array(box)], isClosed=True, color=(0, 255, 0), thickness=2)
-
-cv2.imshow('Detected Text', img)
-cv2.waitKey(0)
-cv2.destroyAllWindows()
+if __name__=='__main__':
+    main()

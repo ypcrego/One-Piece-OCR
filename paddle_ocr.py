@@ -2,9 +2,6 @@
 import os
 import argparse
 from paddleocr import PaddleOCR
-from ppocr.utils.logging import get_logger
-import logging
-
 
 class Rect:
     def __init__(self, x1, y1, x2, y2, text):
